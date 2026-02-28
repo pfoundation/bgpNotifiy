@@ -34,6 +34,7 @@ export class EmailChannel implements NotificationChannel {
       ...(this.replyTo ? { replyTo: this.replyTo } : {}),
       ...(this.cc ? { cc: this.cc } : {}),
     });
+    await Bun.sleep(1_000); // Throttle to avoid SMTP rate limits
   }
 
   /** Verify SMTP connection is working */
