@@ -1,0 +1,14 @@
+{{#if isReminder}}[Reminder] {{/if}}Server Unreachable: {{routerName}}
+---
+The BGP monitoring server {{routerName}} ({{mgmtHost}}) is unreachable via SSH.
+All BGP session monitoring for this server is suspended until connectivity is restored.
+{{#if isReminder}}
+This is a periodic reminder. The server has been unreachable since the last state change.
+{{/if}}
+
+
+Router:     {{routerName}}
+Host:       {{mgmtHost}}
+Error:      {{error}}
+Time:       {{timestamp}}
+

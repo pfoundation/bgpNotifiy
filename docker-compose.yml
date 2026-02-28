@@ -1,0 +1,18 @@
+services:
+  bgp-notifier:
+    build: .
+    container_name: bgp-notifier
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # Persist SQLite database
+      - ./data:/app/data
+      # Mount SSH private key (read-only)
+      - ./ssh/id_ed25519:/app/ssh/id_ed25519:ro
+      # Mount router configuration (read-only)
+      - ./routers.json:/app/config/routers.json:ro
+    environment:
+      - SSH_KEY_PATH=/app/ssh/id_ed25519
+      - DB_PATH=/app/data/bgpnotifier.db
+      - ROUTERS_CONFIG_PATH=/app/config/routers.json

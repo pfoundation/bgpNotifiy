@@ -1,0 +1,19 @@
+{
+  "routers": [
+    {
+      "id": 1,
+      "name": "Route Server 1",
+      "host": "10.0.0.1"
+    },
+    {
+      "id": 2,
+      "name": "Route Server 1 IPv6",
+      "host": "10.0.0.2"
+    },
+    {
+      "id": 3,
+      "name": "Route Collector 1",
+      "host": "10.0.0.3"
+    }
+  ]
+}

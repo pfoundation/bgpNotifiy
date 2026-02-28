@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+data/
+ssh/id_ed25519
+*.db
+*.db-wal
+*.db-shm
+ssh/
