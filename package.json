@@ -1,0 +1,24 @@
+{
+  "name": "bgp-notifier",
+  "version": "1.0.0",
+  "description": "BGP session monitoring and notification tool for IXP Bird v2 servers",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun --watch run src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "await-to-js": "^3.0.0",
+    "handlebars": "^4.7.8",
+    "nodemailer": "^6.9.16",
+    "ssh2": "^1.16.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.9",
+    "@types/nodemailer": "^6.4.17",
+    "@types/ssh2": "^1.15.4",
+    "typescript": "^5.7.3"
+  }
+}
