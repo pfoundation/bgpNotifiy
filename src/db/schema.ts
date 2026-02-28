@@ -36,10 +36,24 @@ export function initDatabase(dbPath: string): Database {
       router_name      TEXT NOT NULL,
       mgmt_host        TEXT NOT NULL,
       reachable        INTEGER NOT NULL DEFAULT 1,
+      fail_count       INTEGER NOT NULL DEFAULT 0,
+      success_count    INTEGER NOT NULL DEFAULT 0,
       last_checked_at  TEXT NOT NULL,
       last_notified_at TEXT
     )
   `);
+
+  // Migration: add fail_count and success_count to existing databases
+  try {
+    db.run(`ALTER TABLE server_states ADD COLUMN fail_count INTEGER NOT NULL DEFAULT 0`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.run(`ALTER TABLE server_states ADD COLUMN success_count INTEGER NOT NULL DEFAULT 0`);
+  } catch {
+    // Column already exists
+  }
 
   db.run(`
     CREATE TABLE IF NOT EXISTS notification_log (

@@ -22,6 +22,10 @@ export interface ServerState {
   routerName: string;
   mgmtHost: string;
   reachable: boolean;
+  /** Consecutive failed poll count */
+  failCount: number;
+  /** Consecutive successful poll count (while in down state) */
+  successCount: number;
   lastCheckedAt: string;
   lastNotifiedAt: string | null;
 }
