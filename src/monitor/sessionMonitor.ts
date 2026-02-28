@@ -302,8 +302,6 @@ export class SessionMonitor {
   }
 
   private async getRecipients(asn: number): Promise<string[]> {
-    const recipients: string[] = [this.config.nocEmail];
-
     const [err, memberEmail] = await to(
       this.ixpManager.getNocEmailForAsn(asn)
     );
@@ -311,10 +309,16 @@ export class SessionMonitor {
       console.warn(
         `[session-monitor] Could not fetch NOC email for AS${asn}: ${err.message}`
       );
-    } else if (memberEmail && !recipients.includes(memberEmail)) {
-      recipients.push(memberEmail);
     }
 
-    return recipients;
+    if (memberEmail) {
+      return [memberEmail];
+    }
+
+    // Fallback: no member email found, send directly to our NOC
+    console.warn(
+      `[session-monitor] No member email for AS${asn}, falling back to NOC email`
+    );
+    return [this.config.nocEmail];
   }
 }
