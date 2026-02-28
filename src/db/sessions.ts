@@ -127,6 +127,7 @@ export class SessionRepository {
     const row = this.db
       .query(
         `SELECT router_id, router_name, mgmt_host, reachable,
+                fail_count, success_count,
                 last_checked_at, last_notified_at
          FROM server_states
          WHERE router_id = ?`
@@ -140,6 +141,8 @@ export class SessionRepository {
       routerName: row.router_name as string,
       mgmtHost: row.mgmt_host as string,
       reachable: (row.reachable as number) === 1,
+      failCount: (row.fail_count as number) || 0,
+      successCount: (row.success_count as number) || 0,
       lastCheckedAt: row.last_checked_at as string,
       lastNotifiedAt: (row.last_notified_at as string) || null,
     };
@@ -151,12 +154,15 @@ export class SessionRepository {
       .query(
         `INSERT INTO server_states
            (router_id, router_name, mgmt_host, reachable,
+            fail_count, success_count,
             last_checked_at, last_notified_at)
-         VALUES (?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(router_id) DO UPDATE SET
            router_name = excluded.router_name,
            mgmt_host = excluded.mgmt_host,
            reachable = excluded.reachable,
+           fail_count = excluded.fail_count,
+           success_count = excluded.success_count,
            last_checked_at = excluded.last_checked_at,
            last_notified_at = excluded.last_notified_at`
       )
@@ -165,6 +171,8 @@ export class SessionRepository {
         server.routerName,
         server.mgmtHost,
         server.reachable ? 1 : 0,
+        server.failCount,
+        server.successCount,
         server.lastCheckedAt,
         server.lastNotifiedAt
       );

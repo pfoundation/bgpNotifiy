@@ -20,7 +20,10 @@ export class ServerMonitor {
 
   /**
    * Handle a server that was unreachable during polling.
-   * Sends notification to NOC only (not members).
+   *
+   * Increments failCount and resets successCount. Only sends a notification
+   * when failCount reaches serverDownThreshold. After that, renotify logic
+   * applies based on downRenotifyHours.
    */
   async handleServerDown(
     router: RouterConfig,
@@ -28,76 +31,71 @@ export class ServerMonitor {
   ): Promise<void> {
     const now = new Date().toISOString();
     const existing = this.sessionRepo.getServerState(router.id);
+    const threshold = this.config.serverDownThreshold;
 
     if (!existing) {
-      // First time seeing this server - it's down on first contact
+      // First time seeing this server — record failure #1
+      const failCount = 1;
+      const crossedThreshold = failCount >= threshold;
+
       this.sessionRepo.upsertServerState({
         routerId: router.id,
         routerName: router.name,
         mgmtHost: router.host,
-        reachable: false,
+        reachable: !crossedThreshold,
+        failCount,
+        successCount: 0,
         lastCheckedAt: now,
-        lastNotifiedAt: now,
+        lastNotifiedAt: crossedThreshold ? now : null,
       });
 
-      const { subject, body } = this.notificationManager.buildServerDownMessage(
-        router.name,
-        router.host,
-        error,
-        false
-      );
-
-      await this.notificationManager.send({
-        type: "server_down",
-        routerId: router.id,
-        routerName: router.name,
-        recipients: [this.config.nocEmail],
-        subject,
-        body,
-      });
-
-      console.log(
-        `[server-monitor] Server unreachable (first seen): ${router.name} (${router.host})`
-      );
+      if (crossedThreshold) {
+        await this.sendServerDown(router, error, false);
+        console.log(
+          `[server-monitor] Server unreachable (first seen): ${router.name} (${router.host})`
+        );
+      } else {
+        console.warn(
+          `[server-monitor] Server poll failed (${failCount}/${threshold}): ${router.name} (${router.host})`
+        );
+      }
       return;
     }
+
+    // Increment fail count, reset success count
+    const failCount = existing.failCount + 1;
 
     if (existing.reachable) {
-      // Was reachable, now down -> transition
+      // Was reachable — accumulate failures toward threshold
       this.sessionRepo.upsertServerState({
         routerId: router.id,
         routerName: router.name,
         mgmtHost: router.host,
-        reachable: false,
+        reachable: failCount < threshold,
+        failCount,
+        successCount: 0,
         lastCheckedAt: now,
-        lastNotifiedAt: now,
+        lastNotifiedAt: failCount >= threshold ? now : existing.lastNotifiedAt,
       });
 
-      const { subject, body } = this.notificationManager.buildServerDownMessage(
-        router.name,
-        router.host,
-        error,
-        false
-      );
-
-      await this.notificationManager.send({
-        type: "server_down",
-        routerId: router.id,
-        routerName: router.name,
-        recipients: [this.config.nocEmail],
-        subject,
-        body,
-      });
-
-      console.log(
-        `[server-monitor] Server went unreachable: ${router.name} (${router.host})`
-      );
+      if (failCount >= threshold) {
+        await this.sendServerDown(router, error, false);
+        console.log(
+          `[server-monitor] Server went unreachable (after ${failCount} failures): ${router.name} (${router.host})`
+        );
+      } else {
+        console.warn(
+          `[server-monitor] Server poll failed (${failCount}/${threshold}): ${router.name} (${router.host})`
+        );
+      }
       return;
     }
 
-    // Already down - check renotify
+    // Already marked unreachable — update counters and check renotify
     this.sessionRepo.upsertServerState({
       ...existing,
+      failCount,
+      successCount: 0,
       lastCheckedAt: now,
     });
 
@@ -107,26 +105,13 @@ export class ServerMonitor {
         routerName: router.name,
         mgmtHost: router.host,
         reachable: false,
+        failCount,
+        successCount: 0,
         lastCheckedAt: now,
         lastNotifiedAt: now,
       });
 
-      const { subject, body } = this.notificationManager.buildServerDownMessage(
-        router.name,
-        router.host,
-        error,
-        true
-      );
-
-      await this.notificationManager.send({
-        type: "server_down",
-        routerId: router.id,
-        routerName: router.name,
-        recipients: [this.config.nocEmail],
-        subject,
-        body,
-      });
-
+      await this.sendServerDown(router, error, true);
       console.log(
         `[server-monitor] Renotify for unreachable server: ${router.name} (${router.host})`
       );
@@ -135,32 +120,55 @@ export class ServerMonitor {
 
   /**
    * Handle a server that is reachable.
-   * If it was previously down, send a "back up" notification.
+   *
+   * Increments successCount and resets failCount. If the server was previously
+   * marked unreachable, only sends a "back up" notification when successCount
+   * reaches serverUpThreshold.
    */
   async handleServerUp(router: RouterConfig): Promise<void> {
     const now = new Date().toISOString();
     const existing = this.sessionRepo.getServerState(router.id);
+    const threshold = this.config.serverUpThreshold;
 
     if (!existing) {
-      // First time seeing this server, it's reachable, just record it
+      // First time seeing this server — it's reachable, just record it
       this.sessionRepo.upsertServerState({
         routerId: router.id,
         routerName: router.name,
         mgmtHost: router.host,
         reachable: true,
+        failCount: 0,
+        successCount: 0,
         lastCheckedAt: now,
         lastNotifiedAt: null,
       });
       return;
     }
 
-    if (!existing.reachable) {
-      // Was down, now back up -> send notification
+    // Reset fail count, increment success count
+    const successCount = existing.reachable ? 0 : existing.successCount + 1;
+
+    if (existing.reachable) {
+      // Still reachable — just update timestamp
+      this.sessionRepo.upsertServerState({
+        ...existing,
+        failCount: 0,
+        successCount: 0,
+        lastCheckedAt: now,
+      });
+      return;
+    }
+
+    // Was unreachable — accumulate successes toward threshold
+    if (successCount >= threshold) {
+      // Threshold reached — mark as back up
       this.sessionRepo.upsertServerState({
         routerId: router.id,
         routerName: router.name,
         mgmtHost: router.host,
         reachable: true,
+        failCount: 0,
+        successCount: 0,
         lastCheckedAt: now,
         lastNotifiedAt: now,
       });
@@ -180,15 +188,42 @@ export class ServerMonitor {
       });
 
       console.log(
-        `[server-monitor] Server back online: ${router.name} (${router.host})`
+        `[server-monitor] Server back online (after ${successCount} successes): ${router.name} (${router.host})`
       );
-      return;
-    }
+    } else {
+      // Not yet at threshold — record success but keep marked unreachable
+      this.sessionRepo.upsertServerState({
+        ...existing,
+        failCount: 0,
+        successCount,
+        lastCheckedAt: now,
+      });
 
-    // Still reachable, just update timestamp
-    this.sessionRepo.upsertServerState({
-      ...existing,
-      lastCheckedAt: now,
+      console.warn(
+        `[server-monitor] Server poll succeeded (${successCount}/${threshold}), still confirming: ${router.name} (${router.host})`
+      );
+    }
+  }
+
+  private async sendServerDown(
+    router: RouterConfig,
+    error: string,
+    isReminder: boolean
+  ): Promise<void> {
+    const { subject, body } = this.notificationManager.buildServerDownMessage(
+      router.name,
+      router.host,
+      error,
+      isReminder
+    );
+
+    await this.notificationManager.send({
+      type: "server_down",
+      routerId: router.id,
+      routerName: router.name,
+      recipients: [this.config.nocEmail],
+      subject,
+      body,
     });
   }
 

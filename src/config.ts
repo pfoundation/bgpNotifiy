@@ -24,6 +24,10 @@ const configSchema = z.object({
   smtpReplyTo: z.string().min(1).optional(),
   smtpCc: z.string().min(1).optional(),
 
+  // Server thresholds
+  serverDownThreshold: z.coerce.number().positive().default(1),
+  serverUpThreshold: z.coerce.number().positive().default(1),
+
   // SSH
   sshUser: z.string().min(1),
   sshKeyPath: z.string().min(1),
@@ -53,6 +57,8 @@ export function loadConfig(): Config {
     smtpFrom: process.env.SMTP_FROM,
     smtpReplyTo: process.env.SMTP_REPLY_TO || undefined,
     smtpCc: process.env.SMTP_CC || undefined,
+    serverDownThreshold: process.env.SERVER_DOWN_THRESHOLD,
+    serverUpThreshold: process.env.SERVER_UP_THRESHOLD,
     sshUser: process.env.SSH_USER,
     sshKeyPath: process.env.SSH_KEY_PATH,
     sshPort: process.env.SSH_PORT,
