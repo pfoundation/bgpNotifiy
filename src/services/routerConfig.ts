@@ -6,6 +6,8 @@ const routerSchema = z.object({
   id: z.number().int().positive(),
   name: z.string().min(1),
   host: z.string().min(1),
+  peeringIp: z.string().min(1),
+  asn: z.coerce.number().positive(),
 });
 
 const routersFileSchema = z.object({
