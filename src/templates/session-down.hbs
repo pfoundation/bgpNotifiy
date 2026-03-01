@@ -4,16 +4,27 @@
 
 The BGP session for {{label}} on {{routerName}} is currently not established.
 {{#if isReminder}}
-This is a periodic reminder. The session has been down since the last state change.
+This is a periodic reminder. The session has been down since {{downSince}}.
 {{else}}
 This notification was triggered upon detecting the session going down.
 {{/if}}
 
-Router:    {{routerName}}
-Protocol:  {{protocolName}}
-Peer:      {{label}}
-Status:    {{status}}
-Time:      {{timestamp}}
+Router:        {{routerName}}
+Protocol:      {{protocolName}}
+Peer:          {{label}}
+Status:        {{status}}
+{{#if downSince}}
+Down since:    {{downSince}}
+{{/if}}
+Time:          {{timestamp}}
+
+For your convenience, here are the details of the session:
+Your IP:       {{memberIp}}
+Your AS:       AS{{memberAsn}}
+Router IP:     {{routerIp}}
+Router AS:     AS{{routerAsn}}
+
+
 
 --
 OpenIX NOC

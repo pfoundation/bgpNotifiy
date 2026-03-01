@@ -86,7 +86,11 @@ export class NotificationManager {
     asn: number,
     customerName: string | null,
     rawInfo: string,
-    isReminder: boolean
+    isReminder: boolean,
+    memberIp: string | null,
+    routerPeeringIp: string,
+    routerAsn: number,
+    downSince: string | null
   ): { subject: string; body: string } {
     const label = customerName ? `${customerName} (AS${asn})` : `AS${asn}`;
 
@@ -95,8 +99,13 @@ export class NotificationManager {
       protocolName,
       label,
       status: rawInfo || "Not Established",
+      memberIp: memberIp ?? "Unknown",
+      memberAsn: asn,
+      routerIp: routerPeeringIp,
+      routerAsn,
       timestamp: new Date().toISOString(),
       isReminder,
+      downSince,
     });
   }
 
@@ -105,7 +114,10 @@ export class NotificationManager {
     routerName: string,
     protocolName: string,
     asn: number,
-    customerName: string | null
+    customerName: string | null,
+    memberIp: string | null,
+    routerPeeringIp: string,
+    routerAsn: number
   ): { subject: string; body: string } {
     const label = customerName ? `${customerName} (AS${asn})` : `AS${asn}`;
 
@@ -113,6 +125,10 @@ export class NotificationManager {
       routerName,
       protocolName,
       label,
+      memberIp: memberIp ?? "Unknown",
+      memberAsn: asn,
+      routerIp: routerPeeringIp,
+      routerAsn,
       timestamp: new Date().toISOString(),
     });
   }

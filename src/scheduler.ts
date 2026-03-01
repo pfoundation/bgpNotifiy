@@ -102,11 +102,7 @@ export class Scheduler {
 
       // Process BGP sessions
       const [sessionErr] = await to(
-        this.sessionMonitor.processSessions(
-          result.routerId,
-          result.routerName,
-          result.sessions
-        )
+        this.sessionMonitor.processSessions(router, result.sessions)
       );
       if (sessionErr) {
         console.error(
