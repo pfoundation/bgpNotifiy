@@ -3,17 +3,23 @@
     {
       "id": 1,
       "name": "Route Server 1",
-      "host": "10.0.0.1"
+      "host": "10.0.0.1",
+      "peeringIp": "192.0.2.1",
+      "asn": 65000
     },
     {
       "id": 2,
       "name": "Route Server 1 IPv6",
-      "host": "10.0.0.2"
+      "host": "10.0.0.2",
+      "peeringIp": "192.0.2.2",
+      "asn": 65000
     },
     {
       "id": 3,
       "name": "Route Collector 1",
-      "host": "10.0.0.3"
+      "host": "10.0.0.3",
+      "peeringIp": "192.0.2.3",
+      "asn": 65001
     }
   ]
 }

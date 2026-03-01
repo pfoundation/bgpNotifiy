@@ -174,6 +174,11 @@ to avoid overloading SSH connections.
 - `EmailChannel` implements `NotificationChannel` using `nodemailer`
 - Recipients determined per-event: member NOC email (from IX-F export) + our NOC email
 
+### Important Restrictions
+
+- **Do NOT modify database file permissions** (ownership, chmod, etc.) without explicit user approval. The SQLite database at `/app/data/bgpnotifier.db` relies on bind-mount permissions matching the host `ubuntu` user (UID 1000) and the container `bun` user (UID 1000). Changing permissions can break the volume mount or cause data loss.
+- **Do NOT alter the database schema or wipe the database** without explicit user approval. This includes adding/removing/renaming columns, changing table definitions, dropping tables, or deleting the `.db` file. Schema migrations must be discussed and approved before implementation. The database contains live session state and notification history that cannot be recovered once lost.
+
 ### Key File Locations
 
 ```

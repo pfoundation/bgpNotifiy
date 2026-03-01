@@ -4,6 +4,7 @@ import type { SessionRepository } from "../db/sessions.js";
 import type { IxpManagerClient } from "../services/ixpManager.js";
 import type { NotificationManager } from "../notifications/manager.js";
 import type { BgpSession } from "../types/bird.js";
+import type { RouterConfig } from "../types/ixpManager.js";
 
 export class SessionMonitor {
   private config: Config;
@@ -33,43 +34,40 @@ export class SessionMonitor {
    * 4. Not Established + already down   -> if last notified > renotify interval, re-notify
    */
   async processSessions(
-    routerId: number,
-    routerName: string,
+    router: RouterConfig,
     sessions: BgpSession[]
   ): Promise<void> {
     for (const session of sessions) {
       const [err] = await to(
-        this.processSession(routerId, routerName, session)
+        this.processSession(router, session)
       );
       if (err) {
         console.error(
-          `[session-monitor] Error processing ${session.protocolName} on ${routerName}: ${err.message}`
+          `[session-monitor] Error processing ${session.protocolName} on ${router.name}: ${err.message}`
         );
       }
     }
   }
 
   private async processSession(
-    routerId: number,
-    routerName: string,
+    router: RouterConfig,
     session: BgpSession
   ): Promise<void> {
     const existing = this.sessionRepo.getSession(
-      routerId,
+      router.id,
       session.protocolName
     );
     const now = new Date().toISOString();
 
     if (session.isEstablished) {
-      await this.handleEstablished(routerId, routerName, session, existing, now);
+      await this.handleEstablished(router, session, existing, now);
     } else {
-      await this.handleNotEstablished(routerId, routerName, session, existing, now);
+      await this.handleNotEstablished(router, session, existing, now);
     }
   }
 
   private async handleEstablished(
-    routerId: number,
-    routerName: string,
+    router: RouterConfig,
     session: BgpSession,
     existing: Awaited<ReturnType<SessionRepository["getSession"]>>,
     now: string
@@ -77,8 +75,8 @@ export class SessionMonitor {
     if (!existing) {
       // Case 1: Established + no history -> store as up, skip notification
       this.sessionRepo.upsertSession({
-        routerId,
-        routerName,
+        routerId: router.id,
+        routerName: router.name,
         protocolName: session.protocolName,
         asn: session.asn,
         infraId: session.infraId,
@@ -88,7 +86,7 @@ export class SessionMonitor {
         lastNotifiedAt: null,
       });
       console.log(
-        `[session-monitor] New session discovered as up: ${session.protocolName} on ${routerName} (AS${session.asn})`
+        `[session-monitor] New session discovered as up: ${session.protocolName} on ${router.name} (AS${session.asn})`
       );
       return;
     }
@@ -96,8 +94,8 @@ export class SessionMonitor {
     if (existing.state === "down") {
       // Case 2: Established + was down -> mark up, send notification
       this.sessionRepo.upsertSession({
-        routerId,
-        routerName,
+        routerId: router.id,
+        routerName: router.name,
         protocolName: session.protocolName,
         asn: session.asn,
         infraId: session.infraId,
@@ -107,27 +105,22 @@ export class SessionMonitor {
         lastNotifiedAt: now,
       });
 
-      const [custErr, memberName] = await to(
-        this.ixpManager.getMemberNameByAsn(session.asn)
-      );
-      if (custErr) {
-        console.warn(
-          `[session-monitor] Could not fetch member name for AS${session.asn}: ${custErr.message}`
-        );
-      }
-
+      const memberInfo = await this.getMemberInfo(session.asn);
       const recipients = await this.getRecipients(session.asn);
       const { subject, body } = this.notificationManager.buildSessionUpMessage(
-        routerName,
+        router.name,
         session.protocolName,
         session.asn,
-        (memberName as string) ?? null
+        memberInfo.name,
+        memberInfo.ip,
+        router.peeringIp,
+        router.asn
       );
 
       await this.notificationManager.send({
         type: "session_up",
-        routerId,
-        routerName,
+        routerId: router.id,
+        routerName: router.name,
         protocolName: session.protocolName,
         asn: session.asn,
         recipients,
@@ -136,15 +129,14 @@ export class SessionMonitor {
       });
 
       console.log(
-        `[session-monitor] Session back up: ${session.protocolName} on ${routerName} (AS${session.asn})`
+        `[session-monitor] Session back up: ${session.protocolName} on ${router.name} (AS${session.asn})`
       );
     }
     // If already up, nothing to do
   }
 
   private async handleNotEstablished(
-    routerId: number,
-    routerName: string,
+    router: RouterConfig,
     session: BgpSession,
     existing: Awaited<ReturnType<SessionRepository["getSession"]>>,
     now: string
@@ -152,8 +144,8 @@ export class SessionMonitor {
     if (!existing) {
       // Case 3: Not Established + no history -> store as down, send notification
       this.sessionRepo.upsertSession({
-        routerId,
-        routerName,
+        routerId: router.id,
+        routerName: router.name,
         protocolName: session.protocolName,
         asn: session.asn,
         infraId: session.infraId,
@@ -163,29 +155,25 @@ export class SessionMonitor {
         lastNotifiedAt: now,
       });
 
-      const [custErr, memberName2] = await to(
-        this.ixpManager.getMemberNameByAsn(session.asn)
-      );
-      if (custErr) {
-        console.warn(
-          `[session-monitor] Could not fetch member name for AS${session.asn}: ${custErr.message}`
-        );
-      }
-
+      const memberInfo = await this.getMemberInfo(session.asn);
       const recipients = await this.getRecipients(session.asn);
       const { subject, body } = this.notificationManager.buildSessionDownMessage(
-        routerName,
+        router.name,
         session.protocolName,
         session.asn,
-        (memberName2 as string) ?? null,
+        memberInfo.name,
         session.rawInfo,
-        false
+        false,
+        memberInfo.ip,
+        router.peeringIp,
+        router.asn,
+        null
       );
 
       await this.notificationManager.send({
         type: "session_down",
-        routerId,
-        routerName,
+        routerId: router.id,
+        routerName: router.name,
         protocolName: session.protocolName,
         asn: session.asn,
         recipients,
@@ -194,7 +182,7 @@ export class SessionMonitor {
       });
 
       console.log(
-        `[session-monitor] New session discovered as down: ${session.protocolName} on ${routerName} (AS${session.asn})`
+        `[session-monitor] New session discovered as down: ${session.protocolName} on ${router.name} (AS${session.asn})`
       );
       return;
     }
@@ -203,34 +191,30 @@ export class SessionMonitor {
       // Case 4: Not Established + already down -> check renotify interval
       if (this.shouldRenotify(existing.lastNotifiedAt)) {
         this.sessionRepo.updateLastNotified(
-          routerId,
+          router.id,
           session.protocolName,
           now
         );
 
-        const [custErr2, memberName3] = await to(
-          this.ixpManager.getMemberNameByAsn(session.asn)
-        );
-        if (custErr2) {
-          console.warn(
-            `[session-monitor] Could not fetch member name for AS${session.asn}: ${custErr2.message}`
-          );
-        }
-
+        const memberInfo = await this.getMemberInfo(session.asn);
         const recipients = await this.getRecipients(session.asn);
         const { subject, body } = this.notificationManager.buildSessionDownMessage(
-          routerName,
+          router.name,
           session.protocolName,
           session.asn,
-          (memberName3 as string) ?? null,
+          memberInfo.name,
           session.rawInfo,
-          true
+          true,
+          memberInfo.ip,
+          router.peeringIp,
+          router.asn,
+          this.formatDownSince(existing.stateChangedAt)
         );
 
         await this.notificationManager.send({
           type: "session_down",
-          routerId,
-          routerName,
+          routerId: router.id,
+          routerName: router.name,
           protocolName: session.protocolName,
           asn: session.asn,
           recipients,
@@ -239,7 +223,7 @@ export class SessionMonitor {
         });
 
         console.log(
-          `[session-monitor] Renotify for down session: ${session.protocolName} on ${routerName} (AS${session.asn})`
+          `[session-monitor] Renotify for down session: ${session.protocolName} on ${router.name} (AS${session.asn})`
         );
       }
       return;
@@ -247,8 +231,8 @@ export class SessionMonitor {
 
     // Was up, now down -> transition to down
     this.sessionRepo.upsertSession({
-      routerId,
-      routerName,
+      routerId: router.id,
+      routerName: router.name,
       protocolName: session.protocolName,
       asn: session.asn,
       infraId: session.infraId,
@@ -258,29 +242,25 @@ export class SessionMonitor {
       lastNotifiedAt: now,
     });
 
-    const [custErr, memberName] = await to(
-      this.ixpManager.getMemberNameByAsn(session.asn)
-    );
-    if (custErr) {
-      console.warn(
-        `[session-monitor] Could not fetch member name for AS${session.asn}: ${custErr.message}`
-      );
-    }
-
+    const memberInfo = await this.getMemberInfo(session.asn);
     const recipients = await this.getRecipients(session.asn);
     const { subject, body } = this.notificationManager.buildSessionDownMessage(
-      routerName,
+      router.name,
       session.protocolName,
       session.asn,
-      (memberName as string) ?? null,
+      memberInfo.name,
       session.rawInfo,
-      false
+      false,
+      memberInfo.ip,
+      router.peeringIp,
+      router.asn,
+      null
     );
 
     await this.notificationManager.send({
       type: "session_down",
-      routerId,
-      routerName,
+      routerId: router.id,
+      routerName: router.name,
       protocolName: session.protocolName,
       asn: session.asn,
       recipients,
@@ -289,8 +269,57 @@ export class SessionMonitor {
     });
 
     console.log(
-      `[session-monitor] Session went down: ${session.protocolName} on ${routerName} (AS${session.asn})`
+      `[session-monitor] Session went down: ${session.protocolName} on ${router.name} (AS${session.asn})`
     );
+  }
+
+  /** Fetch member name and peering IP in a single call */
+  private async getMemberInfo(
+    asn: number
+  ): Promise<{ name: string | null; ip: string | null }> {
+    const [nameErr, memberName] = await to(
+      this.ixpManager.getMemberNameByAsn(asn)
+    );
+    if (nameErr) {
+      console.warn(
+        `[session-monitor] Could not fetch member name for AS${asn}: ${nameErr.message}`
+      );
+    }
+
+    const [ipErr, memberIp] = await to(
+      this.ixpManager.getMemberIpByAsn(asn)
+    );
+    if (ipErr) {
+      console.warn(
+        `[session-monitor] Could not fetch member IP for AS${asn}: ${ipErr.message}`
+      );
+    }
+
+    return {
+      name: (memberName as string) ?? null,
+      ip: (memberIp as string) ?? null,
+    };
+  }
+
+  /** Format an ISO timestamp as "2026-02-28 00:47 UTC (2d 4h ago)" */
+  private formatDownSince(sinceIso: string): string {
+    const dt = new Date(sinceIso);
+    const utc = dt.toISOString().replace("T", " ").slice(0, 16) + " UTC";
+    const ms = Date.now() - dt.getTime();
+    const minutes = Math.floor(ms / 60_000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    let relative: string;
+    if (days > 0) {
+      relative = `${days}d ${hours % 24}h ago`;
+    } else if (hours > 0) {
+      relative = `${hours}h ${minutes % 60}m ago`;
+    } else {
+      relative = `${minutes}m ago`;
+    }
+
+    return `${utc} (${relative})`;
   }
 
   private shouldRenotify(lastNotifiedAt: string | null): boolean {

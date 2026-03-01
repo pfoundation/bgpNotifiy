@@ -35,6 +35,20 @@ export class IxpManagerClient {
     return member.name;
   }
 
+  /** Get the member's IPv4 peering address for a given ASN */
+  async getMemberIpByAsn(asn: number): Promise<string | null> {
+    const member = await this.getMemberByAsn(asn);
+    if (!member) return null;
+
+    const connection = member.connection_list?.[0];
+    if (!connection) return null;
+
+    const vlan = connection.vlan_list?.[0];
+    if (!vlan) return null;
+
+    return vlan.ipv4?.address ?? null;
+  }
+
   /** Force refresh all cached data */
   invalidateCache(): void {
     this.memberCache.invalidate();

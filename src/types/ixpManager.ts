@@ -3,6 +3,10 @@ export interface RouterConfig {
   id: number;
   name: string;
   host: string;
+  /** Peering IP address on the IXP fabric */
+  peeringIp: string;
+  /** Route server ASN */
+  asn: number;
 }
 
 /** IX-F Member Export v1.0 root response */
