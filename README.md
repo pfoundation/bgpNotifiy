@@ -127,9 +127,11 @@ You should see output like:
 
 | Event | Action |
 |-------|--------|
-| Session goes down (first detection) | Immediate notification |
+| Session goes down | Marked down internally; notification deferred by `DOWN_COOLDOWN_MINUTES` (default: 30m) |
+| Session recovers within cooldown | Silent recovery -- no down or up notification sent |
+| Session still down after cooldown | Initial down notification sent |
 | Session stays down | Re-notification every `DOWN_RENOTIFY_HOURS` (default: 12h) |
-| Session comes back up | One notification |
+| Session comes back up after being notified | One "back up" notification |
 | Session already up, no prior history | Silently recorded, no notification (avoids noise on first run) |
 
 ### Server notifications (sent to your NOC only)
@@ -158,6 +160,7 @@ pb_0016_as31126  -->  ASN 31126  -->  "SODETEL S.A.L." (noc@sodetel.net.lb)
 |----------|-------------|---------|----------|
 | `POLL_INTERVAL_MINUTES` | How often to poll BGP sessions | `3` | No |
 | `DOWN_RENOTIFY_HOURS` | Re-notification interval for down sessions/servers | `12` | No |
+| `DOWN_COOLDOWN_MINUTES` | Cooldown before sending session-down notification (suppresses transient flaps). Set `0` to disable | `30` | No |
 | `IXF_EXPORT_URL` | Full URL to IX-F Member Export v1.0 endpoint | -- | Yes |
 | `IXP_MANAGER_API_KEY` | IXP Manager API key | -- | Yes |
 | `NOC_EMAIL` | Your NOC email (receives all alerts) | `noc@openix.ong` | No |

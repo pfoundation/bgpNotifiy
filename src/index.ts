@@ -18,17 +18,28 @@ async function main(): Promise<void> {
   // Load and validate configuration
   const config = loadConfig();
   console.log("[bgp-notifier] Configuration loaded");
-  console.log(`[bgp-notifier]   Poll interval: ${config.pollIntervalMinutes} minutes`);
-  console.log(`[bgp-notifier]   Renotify interval: ${config.downRenotifyHours} hours`);
+  console.log(
+    `[bgp-notifier]   Poll interval: ${config.pollIntervalMinutes} minutes`,
+  );
+  console.log(
+    `[bgp-notifier]   Renotify interval: ${config.downRenotifyHours} hours`,
+  );
+  console.log(
+    `[bgp-notifier]   Down cooldown: ${config.downCooldownMinutes} minutes`,
+  );
   console.log(`[bgp-notifier]   NOC email: ${config.nocEmail}`);
   console.log(`[bgp-notifier]   IX-F export: ${config.ixfExportUrl}`);
   console.log(`[bgp-notifier]   Database: ${config.dbPath}`);
 
   // Load router configuration
   const routers = loadRouterConfig(config.routersConfigPath);
-  console.log(`[bgp-notifier] Loaded ${routers.length} routers from ${config.routersConfigPath}`);
+  console.log(
+    `[bgp-notifier] Loaded ${routers.length} routers from ${config.routersConfigPath}`,
+  );
   for (const router of routers) {
-    console.log(`[bgp-notifier]   [${router.id}] ${router.name} (${router.host})`);
+    console.log(
+      `[bgp-notifier]   [${router.id}] ${router.name} (${router.host})`,
+    );
   }
 
   // Initialize database
@@ -48,7 +59,7 @@ async function main(): Promise<void> {
     console.log("[bgp-notifier] SMTP connection verified");
   } else {
     console.warn(
-      "[bgp-notifier] SMTP connection could not be verified - emails may fail"
+      "[bgp-notifier] SMTP connection could not be verified - emails may fail",
     );
   }
 
@@ -58,7 +69,7 @@ async function main(): Promise<void> {
   const notificationManager = new NotificationManager(
     [emailChannel],
     notificationRepo,
-    renderer
+    renderer,
   );
 
   // Initialize monitors
@@ -66,12 +77,12 @@ async function main(): Promise<void> {
     config,
     sessionRepo,
     ixpManager,
-    notificationManager
+    notificationManager,
   );
   const serverMonitor = new ServerMonitor(
     config,
     sessionRepo,
-    notificationManager
+    notificationManager,
   );
 
   // Initialize and start scheduler
@@ -80,7 +91,7 @@ async function main(): Promise<void> {
     routers,
     ssh,
     sessionMonitor,
-    serverMonitor
+    serverMonitor,
   );
 
   // Graceful shutdown
@@ -99,11 +110,11 @@ async function main(): Promise<void> {
   const { ok, memberCount } = await ixpManager.verifyConnection();
   if (ok) {
     console.log(
-      `[bgp-notifier] IXP Manager IX-F export connected - ${memberCount} members`
+      `[bgp-notifier] IXP Manager IX-F export connected - ${memberCount} members`,
     );
   } else {
     console.warn(
-      "[bgp-notifier] Could not reach IXP Manager IX-F export - member lookups may fail"
+      "[bgp-notifier] Could not reach IXP Manager IX-F export - member lookups may fail",
     );
   }
 

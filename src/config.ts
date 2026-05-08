@@ -4,6 +4,7 @@ const configSchema = z.object({
   // Polling
   pollIntervalMinutes: z.coerce.number().positive().default(3),
   downRenotifyHours: z.coerce.number().positive().default(12),
+  downCooldownMinutes: z.coerce.number().nonnegative().default(30),
 
   // IXP Manager
   ixfExportUrl: z.string().url(),
@@ -46,6 +47,7 @@ export function loadConfig(): Config {
   const result = configSchema.safeParse({
     pollIntervalMinutes: process.env.POLL_INTERVAL_MINUTES,
     downRenotifyHours: process.env.DOWN_RENOTIFY_HOURS,
+    downCooldownMinutes: process.env.DOWN_COOLDOWN_MINUTES,
     ixfExportUrl: process.env.IXF_EXPORT_URL,
     ixpManagerApiKey: process.env.IXP_MANAGER_API_KEY,
     routersConfigPath: process.env.ROUTERS_CONFIG_PATH,
